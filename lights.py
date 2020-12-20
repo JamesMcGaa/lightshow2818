@@ -1,5 +1,7 @@
 import time
 from rpi_ws281x import *
+import redis
+r = redis.Redis(host='localhost', port=6379, db=0)
 
 LED_COUNT      = 300      # Number of LED pixels.
 LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
@@ -54,10 +56,24 @@ class neopixel_controller():
         self.strip.begin()
         self.i = 0
         self.j = 0 
+        self.time_since_sync = time.time()
     
     def wipe(self):
         colorWipe(self.strip, Color(0,0,0))
     
+    def advance(self):
+        if self.power == True:
+            if self.mode == "Static":
+                if self.color_setting == "RAINBOW":
+                    self.advance_rainbow
+    
+    def redis_sync(self):
+        pipe = r.pipeline()
+        pipe.get("LIGHTS")
+        power = pipe.execute()[0]
+        self.power = power
+        return
+
     def advance_rainbow(self):
         if self.j == 256:
             self.j = 0 
@@ -75,6 +91,7 @@ if __name__ == '__main__':
     controller = neopixel_controller()
     try:
         while True:
-            controller.advance_rainbow()
+            controller.redis_sync()
+            controller.advance()
     except KeyboardInterrupt:
         controller.wipe()
