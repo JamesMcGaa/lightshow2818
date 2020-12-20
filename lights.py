@@ -1,13 +1,10 @@
 import time
 from rpi_ws281x import *
 
-
-
 LED_COUNT      = 300      # Number of LED pixels.
 LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
 LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 10      # DMA channel to use for generating signal (try 10)
-LED_BRIGHTNESS = 10     # Set to 0 for darkest and 255 for brightest
 LED_INVERT     = False   # True to invert the signal (when using NPN transistor level shift)
 LED_CHANNEL    = 0       # set to '1' for GPIOs 13, 19, 41, 45 or 53
 
@@ -22,12 +19,12 @@ def wheel(pos):
         pos -= 170
         return Color(0, pos * 3, 255 - pos * 3)
     
-def colorWipe(strip, color, wait_ms=50):
+def colorWipe(strip, color):
     """Wipe color across display a pixel at a time."""
     for i in range(strip.numPixels()):
         strip.setPixelColor(i, color)
-        strip.show()
-        time.sleep(wait_ms/1000.0)
+    strip.show()
+
 
 def rainbow(strip, wait_ms=20, iterations=1):
     """Draw rainbow that fades across all pixels at once."""
@@ -45,12 +42,44 @@ def rainbowCycle(strip, wait_ms=20, iterations=5):
         strip.show()
         time.sleep(wait_ms/1000.0)
 
+
+class neopixel_controller():
+    def __init__(self):
+        self.changed = True
+        self.power = True
+        self.brightness = 10
+        self.mode = "STATIC"
+        self.color_setting = "RAINBOW"
+        self.strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, self.brightness, LED_CHANNEL)
+        self.strip.begin()
+        self.i = 0
+        self.j = 0 
+    
+    def wipe(self):
+        colorWipe(self.strip, Color(0,0,0))
+    
+    def advance_rainbow(self):
+        if self.j == 256:
+            self.j = 0 
+        elif self.i < range(self.strip.numPixels()):
+            self.strip.setPixelColor(self.i, wheel((self.i+self.j) & 255))
+            self.i += 1
+        else:
+            self.strip.show()
+            self.i = 0
+            self.j += 1
+
+
+        for j in range(256):
+            for i in range(self.strip.numPixels()):
+                self.strip.setPixelColor(i, wheel((i+j) & 255))
+            self.strip.show()
+
+
 if __name__ == '__main__':
-    strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
-    strip.begin()
+    controller = neopixel_controller()
     try:
         while True:
-            rainbow(strip)
-            rainbowCycle(strip)
+            controller.advance_rainbow()
     except KeyboardInterrupt:
-        colorWipe(strip, Color(0,0,0), 10)
+        controller.wipe()
