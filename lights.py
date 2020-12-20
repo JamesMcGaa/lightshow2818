@@ -61,7 +61,7 @@ class neopixel_controller():
     def advance_rainbow(self):
         if self.j == 256:
             self.j = 0 
-        elif self.i < range(self.strip.numPixels()):
+        elif self.i < self.strip.numPixels():
             self.strip.setPixelColor(self.i, wheel((self.i+self.j) & 255))
             self.i += 1
         else:
@@ -69,11 +69,6 @@ class neopixel_controller():
             self.i = 0
             self.j += 1
 
-
-        for j in range(256):
-            for i in range(self.strip.numPixels()):
-                self.strip.setPixelColor(i, wheel((i+j) & 255))
-            self.strip.show()
 
 
 if __name__ == '__main__':
