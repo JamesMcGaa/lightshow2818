@@ -49,9 +49,16 @@ class neopixel_controller():
     def __init__(self):
         self.changed = True
         self.power = True
-        self.brightness = 10
+        self.brightness = 3
         self.mode = "STATIC"
         self.color_setting = "RAINBOW"
+        pipe = r.pipeline()
+        pipe.set("CHANGED", "TRUE")
+        pipe.set("POWER", "TRUE")
+        pipe.set("BRIGHTNESS", 3)
+        pipe.set("MODE", "STATIC")
+        pipe.set("COLOR_SETTINGS", "RAINBOW")
+        read = pipe.execute()
         self.strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, self.brightness, LED_CHANNEL)
         self.strip.begin()
         self.i = 0
@@ -63,27 +70,31 @@ class neopixel_controller():
     
     def advance(self):
         if self.power == True:
-            if self.mode == "Static":
+            if self.mode == "STATIC":
                 if self.color_setting == "RAINBOW":
-                    self.advance_rainbow
+                    self.advance_rainbow()
     
     def redis_sync(self):
         pipe = r.pipeline()
-        pipe.get("LIGHTS")
-        power = pipe.execute()[0]
-        self.power = power
+        pipe.get("POWER")
+        power = pipe.execute()[0].decode("utf-8")
+        if power == "FALSE" and self.power == True:
+            self.wipe()
+            self.power = False
+        if power == "TRUE" and self.power == False:
+            self.power = True
         return
 
     def advance_rainbow(self):
         if self.j == 256:
             self.j = 0 
-        elif self.i < self.strip.numPixels():
-            self.strip.setPixelColor(self.i, wheel((self.i+self.j) & 255))
-            self.i += 1
         else:
+            for i in range(self.strip.numPixels()):
+                self.strip.setPixelColor(i, wheel((i+self.j) & 255))
             self.strip.show()
-            self.i = 0
+
             self.j += 1
+
 
 
 

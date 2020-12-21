@@ -1,4 +1,4 @@
-
+import time
 from flask import Flask
 app = Flask(__name__)
 
@@ -11,32 +11,23 @@ def set(param, value):
     if param not in validators:
         return False
     try:
-        formatted_value = validators[param]
+        formatted_value = validators[param](value)
     except:
         return "Failed validation for ({}, {})".format(param, value)
     pipe = r.pipeline()
-    pipe.set("CHANGED", True)
+    pipe.set("CHANGED", "TRUE")
     pipe.set(param, formatted_value)
     pipe.execute()
-    return {param: formatted_value}
+    return "Success"
 
 @app.route("/get/<string:param>", methods=['GET'])
 def get(param):
     value = r.get(param)
     return value
 
-validators = {
-    "POWER": power_validator,
-    "BRIGHTNESS": brightness_validator,
-    "MODE": mode_validator,
-    "COLOR_SETTING": color_settings_validator,
-}
-
 def power_validator(value):
-    if value == "True":
-        return True
-    elif value == "False":
-        return False
+    if value == "TRUE" or value == "FALSE":
+        return value
     else:
         raise ValueError("POWER failed validation")
 
@@ -59,3 +50,12 @@ def color_settings_validator(value):
     if not ColorSettings.is_color_setting(value):
         raise ValueError("COLOR_SETTING failed validation") 
     return value
+
+validators = {
+    "POWER": power_validator,
+    "BRIGHTNESS": brightness_validator,
+    "MODE": mode_validator,
+    "COLOR_SETTING": color_settings_validator,
+}
+
+app.run(host='0.0.0.0')
