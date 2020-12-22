@@ -44,7 +44,7 @@ def brightness_validator(value):
     try:
         integer_value = int(value)
         if integer_value >= 1 and integer_value <= 255:
-            return integer_value
+            return integer_value`
         else:
             raise ValueError("BRIGHTNESS failed validation")
     except:
