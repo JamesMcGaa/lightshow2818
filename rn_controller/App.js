@@ -10,30 +10,48 @@ import {
   View,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
-import { TriangleColorPicker } from "react-native-color-picker";
+import { ColorPicker, toHsv, fromHsv } from "react-native-color-picker";
+import axios from "axios";
+const cors = require('cors');
+const proxyurl = "https://cors-anywhere.herokuapp.com/";
+import { throttle } from 'throttle-debounce';
+
+
 
 
 export default function App() {
-  const [isEnabled, setIsEnabled] = useState(false);
-  const [brightness, setBrightness] = useState(10);
-  const [mode, setMode] = useState("STATIC");
+  const [isEnabled, setIsEnabled] = useState(true);
+  const [brightness, setBrightness] = useState(3);
+  const [mode, setMode] = useState("RAINBOW");
 
   function sliderHandler(event) {
-    console.log(event);
-    console.log(Math.round(Math.pow(event, 5)));
-    setBrightness(Math.round(Math.pow(event, 5)));
+    let scaled_brightness = Math.round(Math.pow(event, 10));
+    setBrightness(scaled_brightness);
+    set("BRIGHTNESS", scaled_brightness.toString());
   }
+
+  async function set(param, value) {
+    console.log(`http://10.0.0.8:5000/set/${param}/${value}`);
+    await fetch(`http://10.0.0.8:5000/set/${param}/${value}`, { mode: 'no-cors' })
+      .then((response) => console.log('successful fetchToken response: ', response))
+      .catch((error) => console.log('fetchToken error: ', error));
+  }
+
+  const throttled_set = throttle(100, true, set);
 
   return (
     <View style={{ flex: 1 }}>
-      <ImageBackground source={ require("./assets/winter.jpg")} imageStyle= 
-{{opacity:0.3}} style={styles.image}>
+      <ImageBackground source={require("./assets/winter.jpg")} imageStyle=
+        {{ opacity: 0.3 }} style={styles.image}>
         <View style={styles.container}>
           <View style={styles.row}>
             <Text style={styles.label}>Power</Text>
             <Switch
               trackColor={{ false: "#767577", true: "#81b0ff" }}
-              onValueChange={() => setIsEnabled(!isEnabled)}
+              onValueChange={async () => {
+                await set("POWER", isEnabled ? "FALSE" : "TRUE");
+                setIsEnabled(!isEnabled);
+              }}
               value={isEnabled}
             />
           </View>
@@ -43,8 +61,8 @@ export default function App() {
             <Slider
               style={{ transform: [{ scaleY: 2 }] }}
               flex={1}
-              minimumValue={Math.pow(3, 0.2)}
-              maximumValue={Math.pow(255, 0.2)}
+              minimumValue={Math.pow(3, 0.1)}
+              maximumValue={Math.pow(255, 0.1)}
               minimumTrackTintColor="blue"
               thumbTintColor="blue"
               maximumTrackTintColor="#CCCCCC"
@@ -57,17 +75,23 @@ export default function App() {
             <Picker
               selectedValue={mode}
               style={{ width: 200, height: 50 }}
-              onValueChange={(modeValue, ModeIndex) => {
+              onValueChange={async (modeValue, ModeIndex) => {
+                await set("MODE", modeValue);
                 setMode(modeValue);
               }}
             >
               <Picker.Item label="STATIC" value="STATIC" />
+              <Picker.Item label="RAINBOW" value="RAINBOW" />
             </Picker>
           </View>
-          <TriangleColorPicker
-            onColorSelected={(color) => console.log(`Color selected: ${color}`)}
+
+          {mode == "STATIC" ? <ColorPicker
+            onColorChange={async (color) => {
+              console.log(fromHsv(color));
+              await throttled_set("HEX", fromHsv(color).substring(1));
+            }}
             style={{ width: "100%", height: 300 }}
-          />
+          /> : null}
 
           <StatusBar style="auto" />
         </View>
