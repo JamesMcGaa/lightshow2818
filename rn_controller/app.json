@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "rn_controller",
-    "slug": "rn_controller",
+    "name": "lightshow2818",
+    "slug": "lightshow2818",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/snowflake_icon.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -21,7 +21,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/snowflake_icon.png",
         "backgroundColor": "#FFFFFF"
       },
       "package": "lightshow2818.controller"
