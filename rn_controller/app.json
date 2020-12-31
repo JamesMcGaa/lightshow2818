@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "lightshow2818",
+    "slug": "lightshow2818",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/snowflake_icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/snowflake_icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "lightshow2818.controller"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
