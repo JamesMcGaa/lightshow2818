@@ -1,7 +1,12 @@
 import time
 from rpi_ws281x import *
+from PIL import ImageColor
 import redis
+from constants import Modes, RedisKeys
+
 r = redis.Redis(host='localhost', port=6379, db=0)
+REDIS_VALUE_POWER_ON = "TRUE"
+REDIS_VALUE_POWER_OFF = "FALSE"
 
 LED_COUNT      = 300      # Number of LED pixels.
 LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
@@ -27,7 +32,6 @@ def colorWipe(strip, color):
         strip.setPixelColor(i, color)
     strip.show()
 
-
 def rainbow(strip, wait_ms=20, iterations=1):
     """Draw rainbow that fades across all pixels at once."""
     for j in range(256*iterations):
@@ -50,39 +54,54 @@ class neopixel_controller():
         self.changed = True
         self.power = True
         self.brightness = 3
-        self.mode = "STATIC"
-        self.color_setting = "RAINBOW"
+        self.mode = "RAINBOW"
         pipe = r.pipeline()
         pipe.set("CHANGED", "TRUE")
         pipe.set("POWER", "TRUE")
         pipe.set("BRIGHTNESS", 3)
-        pipe.set("MODE", "STATIC")
-        pipe.set("COLOR_SETTINGS", "RAINBOW")
+        pipe.set("MODE", Modes.RAINBOW.value)
+        pipe.set("HEX", "32feff")
         read = pipe.execute()
         self.strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, self.brightness, LED_CHANNEL)
         self.strip.begin()
-        self.i = 0
         self.j = 0 
-        self.time_since_sync = time.time()
     
     def wipe(self):
         colorWipe(self.strip, Color(0,0,0))
     
     def advance(self):
         if self.power == True:
-            if self.mode == "STATIC":
-                if self.color_setting == "RAINBOW":
-                    self.advance_rainbow()
+            if self.mode == Modes.RAINBOW.value:
+                self.advance_rainbow()
+            if self.mode == Modes.STATIC.value:
+                pass
     
     def redis_sync(self):
         pipe = r.pipeline()
-        pipe.get("POWER")
-        power = pipe.execute()[0].decode("utf-8")
-        if power == "FALSE" and self.power == True:
+        pipe.get(RedisKeys.POWER.value)
+        pipe.get(RedisKeys.BRIGHTNESS.value)
+        pipe.get(RedisKeys.MODE.value)
+        pipe.get(RedisKeys.HEX.value)
+        results = pipe.execute()
+        print(results)
+        power = results[0].decode("utf-8")
+        if power == REDIS_VALUE_POWER_OFF and self.power == True:
             self.wipe()
             self.power = False
-        if power == "TRUE" and self.power == False:
+        if power == REDIS_VALUE_POWER_ON and self.power == False:
             self.power = True
+            
+        brightness = results[1].decode("utf-8")
+        self.strip.setBrightness(int(brightness))
+        
+        mode = results[2].decode("utf-8")
+        self.mode = mode
+        
+        if mode == Modes.STATIC.value and self.power == True:
+            hex_color = '#' + results[3].decode("utf-8")
+            rgb_color = ImageColor.getcolor(hex_color, "RGB")
+            colorWipe(self.strip, Color(*rgb_color))
+        
         return
 
     def advance_rainbow(self):
@@ -92,10 +111,7 @@ class neopixel_controller():
             for i in range(self.strip.numPixels()):
                 self.strip.setPixelColor(i, wheel((i+self.j) & 255))
             self.strip.show()
-
             self.j += 1
-
-
 
 
 if __name__ == '__main__':

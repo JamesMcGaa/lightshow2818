@@ -2,12 +2,13 @@ import time
 from flask import Flask
 app = Flask(__name__)
 
-from constants import ColorSettings, Modes
+from constants import Modes
 import redis
 r = redis.Redis(host='localhost', port=6379, db=0)
 
+
 @app.route("/set/<string:param>/<string:value>", methods=['GET'])
-def set(param, value):
+def redis_set(param, value):
     if param not in validators:
         return False
     try:
@@ -21,7 +22,7 @@ def set(param, value):
     return "Success"
 
 @app.route("/get/<string:param>", methods=['GET'])
-def get(param):
+def redis_get(param):
     value = r.get(param)
     return value
 
@@ -46,16 +47,18 @@ def mode_validator(value):
         raise ValueError("MODE failed validation") 
     return value
 
-def color_settings_validator(value):
-    if not ColorSettings.is_color_setting(value):
-        raise ValueError("COLOR_SETTING failed validation") 
+def hex_validator(value):
+    valid_hex_characters = set("0123456789abcdef")
+    if not (len(value) == 6 and valid_hex_characters.issuperset(set(value))):
+        raise ValueError("MODE failed validation")
     return value
+
 
 validators = {
     "POWER": power_validator,
     "BRIGHTNESS": brightness_validator,
     "MODE": mode_validator,
-    "COLOR_SETTING": color_settings_validator,
+    "HEX": hex_validator,
 }
 
 app.run(host='0.0.0.0')
