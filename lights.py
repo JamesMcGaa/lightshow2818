@@ -1,12 +1,12 @@
 import time
-from rpi_ws281x import *
-from PIL import ImageColor
+
 import redis
-from constants import Modes, RedisKeys
+from PIL import ImageColor
+from rpi_ws281x import *
+
+from constants import Modes, RedisBool, RedisKeys
 
 r = redis.Redis(host='localhost', port=6379, db=0)
-REDIS_VALUE_POWER_ON = "TRUE"
-REDIS_VALUE_POWER_OFF = "FALSE"
 
 LED_COUNT      = 300      # Number of LED pixels.
 LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
@@ -51,17 +51,15 @@ def rainbowCycle(strip, wait_ms=20, iterations=5):
 
 class neopixel_controller():
     def __init__(self):
-        self.changed = True
         self.power = True
         self.brightness = 3
-        self.mode = "RAINBOW"
+        self.mode = Modes.RAINBOW.value
         pipe = r.pipeline()
-        pipe.set("CHANGED", "TRUE")
-        pipe.set("POWER", "TRUE")
-        pipe.set("BRIGHTNESS", 3)
-        pipe.set("MODE", Modes.RAINBOW.value)
-        pipe.set("HEX", "32feff")
-        read = pipe.execute()
+        pipe.set(RedisKeys.POWER.value, RedisBool.TRUE.value)
+        pipe.set(RedisKeys.BRIGHTNESS.value, 3)
+        pipe.set(RedisKeys.MODE.value, Modes.RAINBOW.value)
+        pipe.set(RedisKeys.HEX.value, "32feff") #Light blue
+        pipe.execute()
         self.strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, self.brightness, LED_CHANNEL)
         self.strip.begin()
         self.j = 0 
@@ -70,7 +68,7 @@ class neopixel_controller():
         colorWipe(self.strip, Color(0,0,0))
     
     def advance(self):
-        if self.power == True:
+        if self.power:
             if self.mode == Modes.RAINBOW.value:
                 self.advance_rainbow()
             if self.mode == Modes.STATIC.value:
@@ -83,22 +81,18 @@ class neopixel_controller():
         pipe.get(RedisKeys.MODE.value)
         pipe.get(RedisKeys.HEX.value)
         results = pipe.execute()
-        print(results)
-        power = results[0].decode("utf-8")
-        if power == REDIS_VALUE_POWER_OFF and self.power == True:
+        power, brightness, mode, hex_val = list(map(lambda redis_val: redis_val.decode("utf-8"), results))
+        if power == RedisBool.FALSE.value and self.power:
             self.wipe()
             self.power = False
-        if power == REDIS_VALUE_POWER_ON and self.power == False:
+        if power == RedisBool.TRUE.value and not self.power:
             self.power = True
             
-        brightness = results[1].decode("utf-8")
         self.strip.setBrightness(int(brightness))
-        
-        mode = results[2].decode("utf-8")
         self.mode = mode
         
-        if mode == Modes.STATIC.value and self.power == True:
-            hex_color = '#' + results[3].decode("utf-8")
+        if mode == Modes.STATIC.value and self.power:
+            hex_color = '#' + hex_val
             rgb_color = ImageColor.getcolor(hex_color, "RGB")
             colorWipe(self.strip, Color(*rgb_color))
         

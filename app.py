@@ -1,25 +1,24 @@
-import time
-from flask import Flask
-app = Flask(__name__)
-
-from constants import Modes
 import redis
+from flask import Flask
+
+from constants import Modes, RedisBool, RedisKeys
+
 r = redis.Redis(host='localhost', port=6379, db=0)
+app = Flask(__name__)
 
 
 @app.route("/set/<string:param>/<string:value>", methods=['GET'])
 def redis_set(param, value):
     if param not in validators:
-        return False
+        return "{} is not a proper redis key".format(param)
     try:
         formatted_value = validators[param](value)
     except:
         return "Failed validation for ({}, {})".format(param, value)
     pipe = r.pipeline()
-    pipe.set("CHANGED", "TRUE")
     pipe.set(param, formatted_value)
     pipe.execute()
-    return "Success"
+    return "Sucessfully processed update for ({}, {})".format(param, formatted_value)
 
 @app.route("/get/<string:param>", methods=['GET'])
 def redis_get(param):
@@ -27,16 +26,16 @@ def redis_get(param):
     return value
 
 def power_validator(value):
-    if value == "TRUE" or value == "FALSE":
-        return value
+    if not RedisBool.is_redis_bool(value):
+        return ValueError("POWER failed validation")
     else:
-        raise ValueError("POWER failed validation")
+        return value
 
 def brightness_validator(value):
     try:
         integer_value = int(value)
         if integer_value >= 1 and integer_value <= 255:
-            return integer_value`
+            return integer_value
         else:
             raise ValueError("BRIGHTNESS failed validation")
     except:
@@ -50,15 +49,15 @@ def mode_validator(value):
 def hex_validator(value):
     valid_hex_characters = set("0123456789abcdef")
     if not (len(value) == 6 and valid_hex_characters.issuperset(set(value))):
-        raise ValueError("MODE failed validation")
+        raise ValueError("HEX failed validation")
     return value
 
 
 validators = {
-    "POWER": power_validator,
-    "BRIGHTNESS": brightness_validator,
-    "MODE": mode_validator,
-    "HEX": hex_validator,
+    RedisKeys.POWER.value: power_validator,
+    RedisKeys.BRIGHTNESS.value: brightness_validator,
+    RedisKeys.MODE.value: mode_validator,
+    RedisKeys.HEX.value: hex_validator,
 }
 
 app.run(host='0.0.0.0')
