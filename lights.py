@@ -1,5 +1,6 @@
 import time
-
+import numpy as np
+import random
 import redis
 from PIL import ImageColor
 from rpi_ws281x import *
@@ -14,6 +15,11 @@ LED_FREQ_HZ    = 800000  # LED signal frequency in hertz (usually 800khz)
 LED_DMA        = 10      # DMA channel to use for generating signal (try 10)
 LED_INVERT     = False   # True to invert the signal (when using NPN transistor level shift)
 LED_CHANNEL    = 0       # set to '1' for GPIOs 13, 19, 41, 45 or 53
+
+BREATHING_FREQUENCY = 200
+BREATHING_INTENSITY = 5
+MIN_BRIGHTNESS = 3
+MAX_BRIGHTNESS = 255
 
 def wheel(pos):
     """Generate rainbow colors across 0-255 positions."""
@@ -31,32 +37,28 @@ def colorWipe(strip, color):
     for i in range(strip.numPixels()):
         strip.setPixelColor(i, color)
     strip.show()
-
-def rainbow(strip, wait_ms=20, iterations=1):
-    """Draw rainbow that fades across all pixels at once."""
-    for j in range(256*iterations):
-        for i in range(strip.numPixels()):
-            strip.setPixelColor(i, wheel((i+j) & 255))
-        strip.show()
-        time.sleep(wait_ms/1000.0)
-
-def rainbowCycle(strip, wait_ms=20, iterations=5):
-    """Draw rainbow that uniformly distributes itself across all pixels."""
-    for j in range(256*iterations):
-        for i in range(strip.numPixels()):
-            strip.setPixelColor(i, wheel((int(i * 256 / strip.numPixels()) + j) & 255))
-        strip.show()
-        time.sleep(wait_ms/1000.0)
-
+    
+def calculate_brightness(base_brightness, breathing_offset):
+    return int(round(
+                np.clip(
+                    int(base_brightness) +
+                    BREATHING_INTENSITY * np.arcsin(breathing_offset / BREATHING_FREQUENCY),
+                    MIN_BRIGHTNESS,
+                    MAX_BRIGHTNESS
+                )
+            ))
+    
 
 class neopixel_controller():
     def __init__(self):
         self.power = True
-        self.brightness = 3
+        self.brightness = MIN_BRIGHTNESS
         self.mode = Modes.RAINBOW.value
+        self.breathing_offset = 0
+        self.breathing_parity = 1
         pipe = r.pipeline()
         pipe.set(RedisKeys.POWER.value, RedisBool.TRUE.value)
-        pipe.set(RedisKeys.BRIGHTNESS.value, 3)
+        pipe.set(RedisKeys.BRIGHTNESS.value, MIN_BRIGHTNESS)
         pipe.set(RedisKeys.MODE.value, Modes.RAINBOW.value)
         pipe.set(RedisKeys.HEX.value, "32feff") #Light blue
         pipe.execute()
@@ -87,8 +89,14 @@ class neopixel_controller():
             self.power = False
         if power == RedisBool.TRUE.value and not self.power:
             self.power = True
-            
-        self.strip.setBrightness(int(brightness))
+        
+        self.breathing_offset = (self.breathing_offset + self.breathing_parity)
+        if abs(self.breathing_offset) == BREATHING_FREQUENCY:
+            self.breathing_parity *= -1
+
+        adjusted_brightness = calculate_brightness(brightness, self.breathing_offset)
+        print(adjusted_brightness)
+        self.strip.setBrightness(adjusted_brightness)
         self.mode = mode
         
         if mode == Modes.STATIC.value and self.power:
@@ -104,6 +112,9 @@ class neopixel_controller():
         else:
             for i in range(self.strip.numPixels()):
                 self.strip.setPixelColor(i, wheel((i+self.j) & 255))
+                #if random.random() > .965:
+                    #self.strip.setPixelColor(i, Color(random.randint(200,255), random.randint(200,255), random.randint(200,255)))
+                
             self.strip.show()
             self.j += 1
 
