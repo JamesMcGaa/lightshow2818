@@ -21,6 +21,10 @@ BREATHING_INTENSITY = 5
 MIN_BRIGHTNESS = 3
 MAX_BRIGHTNESS = 255
 
+SPARKLE_TTL = 30
+SPARKLES_PER_ITERATION = 1
+SPARKLE_WHITE = 200
+
 def wheel(pos):
     """Generate rainbow colors across 0-255 positions."""
     if pos < 85:
@@ -31,12 +35,6 @@ def wheel(pos):
     else:
         pos -= 170
         return Color(0, pos * 3, 255 - pos * 3)
-    
-def colorWipe(strip, color):
-    """Wipe color across display a pixel at a time."""
-    for i in range(strip.numPixels()):
-        strip.setPixelColor(i, color)
-    strip.show()
     
 def calculate_brightness(base_brightness, breathing_offset):
     return int(round(
@@ -56,6 +54,7 @@ class neopixel_controller():
         self.mode = Modes.RAINBOW.value
         self.breathing_offset = 0
         self.breathing_parity = 1
+        self.sparkle_indices = {}
         pipe = r.pipeline()
         pipe.set(RedisKeys.POWER.value, RedisBool.TRUE.value)
         pipe.set(RedisKeys.BRIGHTNESS.value, MIN_BRIGHTNESS)
@@ -67,7 +66,7 @@ class neopixel_controller():
         self.j = 0 
     
     def wipe(self):
-        colorWipe(self.strip, Color(0,0,0))
+        self.set_strip_color(Color(0,0,0), False)
     
     def advance(self):
         if self.power:
@@ -75,6 +74,16 @@ class neopixel_controller():
                 self.advance_rainbow()
             if self.mode == Modes.STATIC.value:
                 pass
+
+    def set_pixel_color_with_sparkles(self, index, color, respect_sparkles=True):
+        if respect_sparkles and index in self.sparkle_indices:
+            return
+        self.strip.setPixelColor(index, color)
+        
+    def set_strip_color(self, color, respect_sparkles=True):
+        for i in range(self.strip.numPixels()):
+            self.set_pixel_color_with_sparkles(i, color, respect_sparkles)
+        self.strip.show()
     
     def redis_sync(self):
         pipe = r.pipeline()
@@ -95,15 +104,13 @@ class neopixel_controller():
             self.breathing_parity *= -1
 
         adjusted_brightness = calculate_brightness(brightness, self.breathing_offset)
-        print(adjusted_brightness)
         self.strip.setBrightness(adjusted_brightness)
         self.mode = mode
         
         if mode == Modes.STATIC.value and self.power:
             hex_color = '#' + hex_val
             rgb_color = ImageColor.getcolor(hex_color, "RGB")
-            colorWipe(self.strip, Color(*rgb_color))
-        
+            self.set_strip_color(Color(*rgb_color))
         return
 
     def advance_rainbow(self):
@@ -111,12 +118,19 @@ class neopixel_controller():
             self.j = 0 
         else:
             for i in range(self.strip.numPixels()):
-                self.strip.setPixelColor(i, wheel((i+self.j) & 255))
-                #if random.random() > .965:
-                    #self.strip.setPixelColor(i, Color(random.randint(200,255), random.randint(200,255), random.randint(200,255)))
-                
+                self.set_pixel_color_with_sparkles(i, wheel((i+self.j) & 255))
             self.strip.show()
             self.j += 1
+            
+    def update_sparkles(self):
+        new_indices = random.sample(range(0, LED_COUNT), SPARKLES_PER_ITERATION)
+        for new_index in new_indices:
+            self.sparkle_indices[new_index] = SPARKLE_TTL 
+            self.set_pixel_color_with_sparkles(new_index, Color(SPARKLE_WHITE,SPARKLE_WHITE,SPARKLE_WHITE), False)
+        for index in list(self.sparkle_indices.keys()): #since we are modifying dict keys while iterating
+            self.sparkle_indices[index] -= 1
+            if self.sparkle_indices[index] == 0:
+                del self.sparkle_indices[index]        
 
 
 if __name__ == '__main__':
@@ -124,6 +138,8 @@ if __name__ == '__main__':
     try:
         while True:
             controller.redis_sync()
+            controller.update_sparkles()
             controller.advance()
+            
     except KeyboardInterrupt:
         controller.wipe()
